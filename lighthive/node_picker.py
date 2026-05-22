@@ -41,7 +41,7 @@ async def rpc_request(client, node, call, params):
 
 async def compare_nodes(nodes, logger):
     node_performance_results = {}
-    method = "database_api.get_dynamic_global_properties"
+    method = "condenser_api.get_dynamic_global_properties"
 
     args = [rpc_request(httpx.AsyncClient(), node, method, {}) for node in nodes]
     responses = await asyncio.gather(*args, return_exceptions=True)

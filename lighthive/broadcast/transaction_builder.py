@@ -30,15 +30,15 @@ class TransactionBuilder:
         self.digest = None
 
     def prepare(self):
-        properties = self.client('database_api').get_dynamic_global_properties()
-        ref_block_num = properties["head_block_number"] - 3 & 0xFFFF
-        ref_block = self.client('block_api').get_block(
-            {"block_num": properties["head_block_number"] - 2})["block"]
-        ref_block_prefix = struct.unpack_from("<I", unhexlify(
-            ref_block["previous"]), 4)[0]
+        properties = self.client('condenser_api').get_dynamic_global_properties()
+        ref_block_num = (properties["last_irreversible_block_num"] - 1) & 0xFFFF
+        ref_block_header = self.client('condenser_api').get_block_header(
+            properties["last_irreversible_block_num"])
+        head_block_id = ref_block_header["previous"] if ref_block_header else '0000000000000000000000000000000000000000'
+        ref_block_prefix = struct.unpack_from("<I", unhexlify(head_block_id), 4)[0]
         expiration = (
-                parse(properties["time"]) + timedelta(seconds=30)
-        ).strftime('%Y-%m-%dT%H:%M:%S%Z')
+                parse(properties["time"]) + timedelta(seconds=600)
+        ).strftime('%Y-%m-%dT%H:%M:%S')
         self.transaction["ref_block_num"] = ref_block_num
         self.transaction["ref_block_prefix"] = ref_block_prefix
         self.transaction["expiration"] = expiration
