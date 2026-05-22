@@ -16,9 +16,18 @@ from .utils import compat_bytes
 
 try:
     import secp256k1
-    USE_SECP256K1 = True
+    USE_SECP256K1 = (
+        hasattr(secp256k1, 'ffi')
+        and hasattr(secp256k1, 'lib')
+        and hasattr(secp256k1.lib, 'secp256k1_ecdsa_sign_recoverable')
+    )
 except ImportError:
     USE_SECP256K1 = False
+
+
+def _secp256k1_context():
+    """Shared libsecp256k1 context (0.14+) or None for legacy per-key ctx."""
+    return getattr(secp256k1, 'secp256k1_ctx', None)
 
 
 class TransactionBuilder:
@@ -141,10 +150,11 @@ class TransactionBuilder:
                     while True:
                         ndata[0] += 1
                         privkey = secp256k1.PrivateKey(p, raw=True)
+                        ctx = _secp256k1_context()
                         sig = secp256k1.ffi.new(
                             'secp256k1_ecdsa_recoverable_signature *')
                         signed = secp256k1.lib.secp256k1_ecdsa_sign_recoverable(
-                            privkey.ctx, sig, self.digest, privkey.private_key,
+                            ctx, sig, self.digest, privkey.private_key,
                             secp256k1.ffi.NULL, ndata)
                         assert signed == 1
                         signature, i = privkey.ecdsa_recoverable_serialize(sig)
