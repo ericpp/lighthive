@@ -121,6 +121,31 @@ class TransactionBuilder:
                 and not (sig[32] & 0x80)
                 and not (sig[32] == 0 and not (sig[33] & 0x80)))
 
+    def _transaction_id(self, tx_hex):
+        raw_bytes = bytes.fromhex(tx_hex[:-2])
+        return hashlib.sha256(raw_bytes).digest()[:20].hex()
+
+    def _wait_for_inclusion(self, tx_id, timeout=15.0):
+        """Poll transaction_status_api after async broadcast (sync API replacement)."""
+        deadline = time.time() + timeout
+
+        while time.time() < deadline:
+            try:
+                tx_data = self.client('condenser_api').get_transaction(tx_id)
+                if tx_data and tx_data.get("block_num"):
+                    return {
+                        "id": tx_id,
+                        "block_num": tx_data["block_num"],
+                        "trx_num": tx_data.get("transaction_num", 0),
+                        "expired": False,
+                    }
+            except Exception:
+                pass
+
+            time.sleep(1.0)
+
+        return {"id": tx_id, "block_num": 0, "trx_num": 0, "expired": False}
+
     def broadcast(self, operations, chain=None, dry_run=False, sync=False):
         preferred_api_type = self.client.api_type
 
@@ -205,13 +230,11 @@ class TransactionBuilder:
             self.transaction["signatures"] = sigs
             if dry_run:
                 return self.transaction
-            if sync:
-                resp = self.client('condenser_api').broadcast_transaction_synchronous(
-                    self.transaction)
-            else:
-                resp = self.client('condenser_api').broadcast_transaction(
-                    self.transaction)
 
-            return resp
+            self.client('condenser_api').broadcast_transaction(self.transaction)
+            if sync:
+                tx_id = self._transaction_id(tx_hex)
+                return self._wait_for_inclusion(tx_id)
+            return {}
         finally:
             self.client.api_type = preferred_api_type
