@@ -232,9 +232,10 @@ class TransactionBuilder:
                 return self.transaction
 
             self.client('condenser_api').broadcast_transaction(self.transaction)
+            tx_id = self._transaction_id(tx_hex)
+            result = {"id": tx_id}
             if sync:
-                tx_id = self._transaction_id(tx_hex)
-                return self._wait_for_inclusion(tx_id)
-            return {}
+                result.update(self._wait_for_inclusion(tx_id))
+            return result
         finally:
             self.client.api_type = preferred_api_type
